@@ -1,0 +1,43 @@
+# Create input variables for customization
+input lookBackDays = 100;  # Default value for number of days to look back is 100
+input lowerPercentileThreshold = 40;  # Default lower percentile threshold is 40
+input upperPercentileThreshold = 90;  # Default upper percentile threshold is 90
+
+# Define global colors
+DefineGlobalColor("ColorBelowLowerThreshold", Color.GREEN);
+DefineGlobalColor("ColorBetweenThresholds", Color.YELLOW);
+DefineGlobalColor("ColorAboveUpperThreshold", Color.RED);
+
+# Get real-time price of VIX for current session
+def CurrentVIX = close("VIX");
+
+# Fetch the daily closing prices of VIX
+def VIXData = close(period = AggregationPeriod.DAY, symbol = "VIX");
+
+# Calculate the number of values below the current value
+def CountBelow = fold i = 0 to lookBackDays - 1 with cb = 0 do cb + (GetValue(VIXData, i) < CurrentVIX);
+# Calculate the number of values above the current value
+def CountAbove = fold j = 0 to lookBackDays - 1 with ca = 0 do ca + (GetValue(VIXData, j) > CurrentVIX);
+
+# Calculate the interpolated percentile rank
+def VIXPercentileRank = (CountBelow + (lookBackDays - CountAbove - CountBelow) * 0.5) / lookBackDays * 100;
+
+# Define an offset value for the main ticker you are viewing
+def offset = atr(14) * -4;
+
+# Plot the line on the chart and color it based on VIX percentile rank
+plot VIXLine = close + offset;
+VIXLine.SetPaintingStrategy(PaintingStrategy.LINE);
+VIXLine.SetLineWeight(2);
+VIXLine.AssignValueColor(
+    if VIXPercentileRank <= lowerPercentileThreshold then GlobalColor("ColorBelowLowerThreshold") 
+    else if VIXPercentileRank > lowerPercentileThreshold and VIXPercentileRank <= upperPercentileThreshold then GlobalColor("ColorBetweenThresholds")
+    else GlobalColor("ColorAboveUpperThreshold")
+);
+
+# Add the VIX percentile rank label to the chart
+AddLabel(yes, "VIX Percentile Rank: " + AsPercent(VIXPercentileRank / 100), 
+    if VIXPercentileRank <= lowerPercentileThreshold then GlobalColor("ColorBelowLowerThreshold") 
+    else if VIXPercentileRank > lowerPercentileThreshold and VIXPercentileRank <= upperPercentileThreshold then GlobalColor("ColorBetweenThresholds")
+    else GlobalColor("ColorAboveUpperThreshold")
+);
